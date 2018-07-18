@@ -50,6 +50,33 @@ void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
 	}
 }
 
+void checkConnection(SQLHDBC& connection) {
+	auto connectionTest = "select net_transport from sys.dm_exec_connections where session_id = @@SPID;";
+	auto length = strlen(connectionTest);
+
+	SQLHSTMT statementHandle = nullptr;
+	if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
+		throw std::runtime_error("SQLAllocHandle failed");
+	}
+
+	if (SQLExecDirect(statementHandle, (SQLCHAR*)connectionTest, length) != SQL_SUCCESS) {
+		throw std::runtime_error("SQLExecDirect failed");
+	}
+
+	SQLCHAR buffer[64] = { 0 };
+	if (SQLBindCol(statementHandle, 1, SQL_CHAR, &buffer, 64, nullptr) != SQL_SUCCESS) {
+		throw std::runtime_error("SQLBindCol failed");
+	}
+	if (SQLFetch(statementHandle) != SQL_SUCCESS) {
+		throw std::runtime_error("SQLFetch failed");
+	}
+
+	cout << "Connected via: ";
+	for (auto c : buffer) {
+		cout << c;
+	}
+	cout << '\n';
+}
 
 // Do transactions with statements 
 // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-how-to/execute-queries/use-a-statement-odbc
@@ -75,11 +102,18 @@ void doTx(std::string connectionString) {
 	}
 
 	SQLCHAR out[512];
-	if (SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength, out, 512, nullptr, SQL_DRIVER_COMPLETE) == SQL_ERROR) {
+	switch (SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength, out, 512, nullptr, SQL_DRIVER_COMPLETE)) {
+	case SQL_SUCCESS:
+	case SQL_SUCCESS_WITH_INFO:
+		break;
+	case SQL_ERROR:
+	default:
 		throw std::runtime_error("SQLDriverConnect failed, did you enter an invalid connection string?");
 	}
 
 	cout << "connected to " << out << '\n';
+
+	checkConnection(connection);
 
 	SQLHSTMT statementHandle = nullptr;
 	if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
