@@ -1,13 +1,6 @@
 ﻿#include "odbcBenchmark.h"
 
 #include <string>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#define GetDesktopWindow() nullptr
-#endif
-
 #include <sql.h>
 #include <sqlext.h>
 #include <vector>
@@ -32,55 +25,32 @@ void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
 
 // Do transactions with statements 
 // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-how-to/execute-queries/use-a-statement-odbc
-void doTx(const std::string &connectionString) {
-    // TODO: this leaks handles on exception
-
-    auto rawConnectionString = (SQLCHAR *) (connectionString.c_str());
-    const auto connectionStringLength = SQLSMALLINT(connectionString.length());
-
-
+void doSmallTx(const std::string &connectionString) {
     auto environment = allocateODBC3Environment();
-    auto connection = allocateDbConnection(environment);
-
-    auto out = std::array<SQLCHAR, 512>();
-    switch (SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength, out.data(),
-                             out.size(), nullptr, SQL_DRIVER_COMPLETE)) {
-        case SQL_SUCCESS:
-        case SQL_SUCCESS_WITH_INFO:
-            break;
-        case SQL_ERROR:
-        default:
-            throw std::runtime_error("SQLDriverConnect failed, did you enter an invalid connection string?");
-    }
-
-    std::cout << "connected to " << std::string(out.begin(), out.end()) << '\n';
-
-    checkAndPrintConnection(connection);
-
-    SQLHSTMT statementHandle = allocateStatementHandle(connection);
+    auto connection = allocateDbConnection(environment.get());
+    connectAndPrintConnectionString(connectionString, connection.get());
+    checkAndPrintConnection(connection.get());
+    auto statementHandle = allocateStatementHandle(connection.get());
 
     const auto iterations = size_t(1e6);
     auto statement = "SELECT 1;";
-    prepareStatement(statementHandle, statement);
+    prepareStatement(statementHandle.get(), statement);
 
     std::cout << "benchmarking " << iterations << " very small transactions" << '\n';
 
     auto timeTaken = bench([&] {
         for (size_t i = 0; i < iterations; ++i) {
-            executeStatement(statementHandle);
-            checkColumns(statementHandle);
-            fetchAndCheckReturnValue(statementHandle);
+            executeStatement(statementHandle.get());
+            checkColumns(statementHandle.get());
+            fetchAndCheckReturnValue(statementHandle.get());
 
-            SQLCloseCursor(statementHandle);
+            SQLCloseCursor(statementHandle.get());
         }
     });
 
     cout << " " << iterations / timeTaken << " msg/s\n";
 
-    SQLFreeHandle(SQL_HANDLE_STMT, statementHandle);
-    SQLDisconnect(connection);
-    SQLFreeHandle(SQL_HANDLE_DBC, connection);
-    SQLFreeHandle(SQL_HANDLE_ENV, environment);
+    SQLDisconnect(connection.get());
 }
 
 /**
@@ -120,7 +90,7 @@ int main(int argc, char *argv[]) {
     for (const auto &connectionString : connectionStrings) {
         std::cout << "Connecting to " << connectionString << '\n';
         try {
-            doTx(connectionString);
+            doSmallTx(connectionString);
         }
         catch (const std::runtime_error &e) {
             std::cout << e.what() << '\n';

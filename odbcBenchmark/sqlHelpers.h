@@ -4,10 +4,20 @@
 #include <array>
 #include <cstring>
 #include <iostream>
+#include <memory>
+#include <type_traits>
 #include <sql.h>
 #include <sqlext.h>
 
-SQLHENV allocateODBC3Environment() {
+#ifdef _WIN32
+#include <windows.h>
+#else
+#define GetDesktopWindow() nullptr
+#endif
+
+void freeODBC3Environment(SQLHENV environment) { SQLFreeHandle(SQL_HANDLE_ENV, environment); }
+
+auto allocateODBC3Environment() {
     auto environment = SQLHENV();
     if (SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &environment) != SQL_SUCCESS) {
         throw std::runtime_error("SQLAllocHandle failed");
@@ -16,30 +26,52 @@ SQLHENV allocateODBC3Environment() {
         SQL_SUCCESS) {
         throw std::runtime_error("SQLSetEnvAttr failed");
     }
-    return environment;
+    return std::unique_ptr<std::remove_pointer_t<SQLHENV>, decltype(&freeODBC3Environment)>
+            (environment, &freeODBC3Environment);
 }
 
-SQLHDBC allocateDbConnection(SQLHENV environment) {
+void freeDbConnection(SQLHDBC connection) { SQLFreeHandle(SQL_HANDLE_DBC, connection); }
+
+auto allocateDbConnection(SQLHENV environment) {
     auto connection = SQLHDBC();
     if (SQLAllocHandle(SQL_HANDLE_DBC, environment, &connection) != SQL_SUCCESS) {
         throw std::runtime_error("SQLAllocHandle failed");
     }
-    return connection;
+    return std::unique_ptr<std::remove_pointer_t<SQLHDBC>, decltype(&freeDbConnection)>(connection, &freeDbConnection);
 }
 
-SQLHSTMT allocateStatementHandle(SQLHDBC connection) {
+void freeStatementHandle(SQLHSTMT statementHandle) { SQLFreeHandle(SQL_HANDLE_STMT, statementHandle); }
+
+auto allocateStatementHandle(SQLHDBC connection) {
     auto statementHandle = SQLHSTMT();
     if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
         throw std::runtime_error("SQLAllocHandle failed");
     }
-    return statementHandle;
+    return std::unique_ptr<std::remove_pointer_t<SQLHSTMT>, decltype(&freeStatementHandle)>(statementHandle, &freeStatementHandle);
 }
 
-void prepareStatement(SQLHSTMT statementHandle, const char* statement) {
+void prepareStatement(SQLHSTMT statementHandle, const char *statement) {
     const auto statementLength = SQLINTEGER(strlen(statement));
     if (SQLPrepare(statementHandle, (SQLCHAR *) statement, statementLength) == SQL_ERROR) {
         throw std::runtime_error("SQLPrepare failed");
     }
+}
+
+void connectAndPrintConnectionString(const std::string &connectionString, SQLHDBC connection) {
+    auto rawConnectionString = (SQLCHAR *) (connectionString.c_str());
+    const auto connectionStringLength = SQLSMALLINT(connectionString.length());
+    auto out = std::array<SQLCHAR, 512>();
+    switch (SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength, out.data(),
+                             out.size(), nullptr, SQL_DRIVER_COMPLETE)) {
+        case SQL_SUCCESS:
+        case SQL_SUCCESS_WITH_INFO:
+            break;
+        case SQL_ERROR:
+        default:
+            throw std::runtime_error("SQLDriverConnect failed, did you enter an invalid connection string?");
+    }
+
+    std::cout << "connected to " << std::string(out.begin(), out.end()) << '\n';
 }
 
 void executeStatement(const SQLHSTMT &statementHandle) {
@@ -58,7 +90,7 @@ void checkColumns(const SQLHSTMT &statementHandle, SQLSMALLINT numCols = 1) {
     }
 }
 
-void checkAndPrintConnection(SQLHDBC &connection) {
+void checkAndPrintConnection(SQLHDBC connection) {
     auto connectionTest = "select net_transport from sys.dm_exec_connections where session_id = @@SPID;";
     const auto length = SQLINTEGER(::strlen(connectionTest));
 
