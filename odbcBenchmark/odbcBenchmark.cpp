@@ -1,6 +1,5 @@
 ﻿#include "odbcBenchmark.h"
-#include <chrono>
-#include <cstring>
+
 #include <string>
 
 #ifdef _WIN32
@@ -11,36 +10,10 @@
 
 #include <sql.h>
 #include <sqlext.h>
+#include "bench.h"
+#include "sqlHelpers.h"
 
 using namespace std;
-
-template<typename T>
-auto bench(T &&fun) {
-    const auto start = std::chrono::high_resolution_clock::now();
-
-    fun();
-
-    const auto end = std::chrono::high_resolution_clock::now();
-
-    return std::chrono::duration<double>(end - start).count();
-}
-
-
-void executeStatement(const SQLHSTMT &statementHandle) {
-    if (SQLExecute(statementHandle) == SQL_ERROR) {
-        throw std::runtime_error("SQLExecDirect failed");
-    }
-}
-
-void checkColumns(const SQLHSTMT &statementHandle) {
-    SQLSMALLINT cols = 0;
-    if (SQLNumResultCols(statementHandle, &cols) == SQL_ERROR) {
-        throw std::runtime_error("SQLNumResultCols failed");
-    }
-    if (cols != 1) {
-        throw std::runtime_error("unexpected number of columns");
-    }
-}
 
 void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
     WCHAR buffer[64] = {0};
@@ -54,34 +27,6 @@ void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
     if (buffer[0] != '1') {
         throw std::runtime_error("unexpected return value from SQL statement");
     }
-}
-
-void checkConnection(SQLHDBC &connection) {
-    auto connectionTest = "select net_transport from sys.dm_exec_connections where session_id = @@SPID;";
-    auto length = strlen(connectionTest);
-
-    SQLHSTMT statementHandle = nullptr;
-    if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
-        throw std::runtime_error("SQLAllocHandle failed");
-    }
-
-    if (SQLExecDirect(statementHandle, (SQLCHAR *) connectionTest, length) != SQL_SUCCESS) {
-        throw std::runtime_error("SQLExecDirect failed");
-    }
-
-    SQLCHAR buffer[64] = {0};
-    if (SQLBindCol(statementHandle, 1, SQL_CHAR, &buffer, 64, nullptr) != SQL_SUCCESS) {
-        throw std::runtime_error("SQLBindCol failed");
-    }
-    if (SQLFetch(statementHandle) != SQL_SUCCESS) {
-        throw std::runtime_error("SQLFetch failed");
-    }
-
-    cout << "Connected via: ";
-    for (auto c : buffer) {
-        cout << c;
-    }
-    cout << '\n';
 }
 
 // Do transactions with statements 
@@ -121,7 +66,7 @@ void doTx(std::string connectionString) {
 
     cout << "connected to " << out << '\n';
 
-    checkConnection(connection);
+    checkAndPrintConnection(connection);
 
     SQLHSTMT statementHandle = nullptr;
     if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
