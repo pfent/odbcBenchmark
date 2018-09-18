@@ -1,11 +1,8 @@
-﻿# CMakeList.txt: CMake-Projektdatei der obersten Ebene. Führen Sie eine globale Konfiguration durch,
-# und schließen Sie hier Unterprojekte ein.
-#
-cmake_minimum_required (VERSION 3.8)
+﻿cmake_minimum_required(VERSION 3.8)
 
-project ("odbcBenchmark")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Profile")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox")
+project("odbcBenchmark")
+if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2")
+endif ()
 
-# Schließen Sie Unterprojekte ein.
-add_subdirectory ("odbcBenchmark")
+add_subdirectory("odbcBenchmark")
