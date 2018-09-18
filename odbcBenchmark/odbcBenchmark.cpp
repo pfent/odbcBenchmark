@@ -10,14 +10,15 @@
 
 #include <sql.h>
 #include <sqlext.h>
+#include <vector>
 #include "bench.h"
 #include "sqlHelpers.h"
 
 using namespace std;
 
 void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
-    WCHAR buffer[64] = {0};
-    if (SQLBindCol(statementHandle, 1, SQL_C_TCHAR, &buffer, 64, nullptr) == SQL_ERROR) {
+    auto buffer = std::array<WCHAR, 64>();
+    if (SQLBindCol(statementHandle, 1, SQL_C_TCHAR, buffer.data(), buffer.size(), nullptr) == SQL_ERROR) {
         throw std::runtime_error("SQLBindCol failed");
     }
     if (SQLFetch(statementHandle) == SQL_ERROR) {
@@ -31,31 +32,19 @@ void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
 
 // Do transactions with statements 
 // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-how-to/execute-queries/use-a-statement-odbc
-void doTx(std::string connectionString) {
+void doTx(const std::string &connectionString) {
     // TODO: this leaks handles on exception
 
     auto rawConnectionString = (SQLCHAR *) (connectionString.c_str());
-    auto connectionStringLength = connectionString.length();
+    const auto connectionStringLength = SQLSMALLINT(connectionString.length());
 
 
-    SQLHENV environment = nullptr;
-    if (SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &environment) != SQL_SUCCESS) {
-        throw std::runtime_error("SQLAllocHandle failed");
-    }
+    auto environment = allocateODBC3Environment();
+    auto connection = allocateDbConnection(environment);
 
-    if (SQLSetEnvAttr(environment, SQL_ATTR_ODBC_VERSION, reinterpret_cast<SQLPOINTER>(SQL_OV_ODBC3), 0) !=
-        SQL_SUCCESS) {
-        throw std::runtime_error("SQLSetEnvAttr failed");
-    }
-
-    SQLHDBC connection = nullptr;
-    if (SQLAllocHandle(SQL_HANDLE_DBC, environment, &connection) != SQL_SUCCESS) {
-        throw std::runtime_error("SQLAllocHandle failed");
-    }
-
-    SQLCHAR out[512];
-    switch (SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength, out, 512,
-                             nullptr, SQL_DRIVER_COMPLETE)) {
+    auto out = std::array<SQLCHAR, 512>();
+    switch (SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength, out.data(),
+                             out.size(), nullptr, SQL_DRIVER_COMPLETE)) {
         case SQL_SUCCESS:
         case SQL_SUCCESS_WITH_INFO:
             break;
@@ -64,21 +53,18 @@ void doTx(std::string connectionString) {
             throw std::runtime_error("SQLDriverConnect failed, did you enter an invalid connection string?");
     }
 
-    cout << "connected to " << out << '\n';
+    std::cout << "connected to " << std::string(out.begin(), out.end()) << '\n';
 
     checkAndPrintConnection(connection);
 
-    SQLHSTMT statementHandle = nullptr;
-    if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
-        throw std::runtime_error("SQLAllocHandle failed");
-    }
+    SQLHSTMT statementHandle = allocateStatementHandle(connection);
 
-    size_t iterations = 1e6;
+    const auto iterations = size_t(1e6);
     auto statement = "SELECT 1;";
-    auto statementLength = strlen(statement);
-    if (SQLPrepare(statementHandle, (SQLCHAR *) statement, statementLength) == SQL_ERROR) {
-        throw std::runtime_error("SQLPrepare failed");
-    }
+    prepareStatement(statementHandle, statement);
+
+    std::cout << "benchmarking " << iterations << " very small transactions" << '\n';
+
     auto timeTaken = bench([&] {
         for (size_t i = 0; i < iterations; ++i) {
             executeStatement(statementHandle);
@@ -109,28 +95,39 @@ int main(int argc, char *argv[]) {
       * tcp:(local) -> TCP connection on localhost
       * np:(local) -> Named pipe connection
       */
-    std::string connectionString =
+    const auto protocols = {"lpc", "tcp", "np"};
+
+    const auto connectionPrefix = std::string(
             "Driver={SQL Server Native Client 11.0};"
-            "Server=lpc:(local);"
+            "Server=");
+    const auto connectionSuffix = std::string(
+            ":(local);"
             "Database=master;"
-            "Trusted_Connection=yes;";
+            "Trusted_Connection=yes;");
 
-    if (argc < 2) {
-        cout << "usage: sql <connection string>\n";
+    auto connectionStrings = std::vector<std::string>();
+
+    if (argc == 2) {
+        connectionStrings.emplace_back(argv[1]);
     } else {
-        connectionString = argv[1];
+        std::cout << "usage: odbcBenchmark <connection string>\n"
+                  << "now testing all possible connections\n\n";
+        for (const auto &protocol : protocols) {
+            connectionStrings.emplace_back(connectionPrefix + protocol += connectionSuffix);
+        }
     }
 
-    cout << "Connecting to " << connectionString << '\n';
-
-    try {
-        doTx(connectionString);
+    for (const auto &connectionString : connectionStrings) {
+        std::cout << "Connecting to " << connectionString << '\n';
+        try {
+            doTx(connectionString);
+        }
+        catch (const std::runtime_error &e) {
+            std::cout << e.what() << '\n';
+        }
+        std::cout << '\n';
     }
-    catch (const std::runtime_error &e) {
-        cout << e.what() << '\n';
-        return -1;
-    }
 
-    cout << "done.";
+    std::cout << "done.";
     return 0;
 }

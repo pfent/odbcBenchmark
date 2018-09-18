@@ -7,6 +7,41 @@
 #include <sql.h>
 #include <sqlext.h>
 
+SQLHENV allocateODBC3Environment() {
+    auto environment = SQLHENV();
+    if (SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &environment) != SQL_SUCCESS) {
+        throw std::runtime_error("SQLAllocHandle failed");
+    }
+    if (SQLSetEnvAttr(environment, SQL_ATTR_ODBC_VERSION, reinterpret_cast<SQLPOINTER>(SQL_OV_ODBC3), 0) !=
+        SQL_SUCCESS) {
+        throw std::runtime_error("SQLSetEnvAttr failed");
+    }
+    return environment;
+}
+
+SQLHDBC allocateDbConnection(SQLHENV environment) {
+    auto connection = SQLHDBC();
+    if (SQLAllocHandle(SQL_HANDLE_DBC, environment, &connection) != SQL_SUCCESS) {
+        throw std::runtime_error("SQLAllocHandle failed");
+    }
+    return connection;
+}
+
+SQLHSTMT allocateStatementHandle(SQLHDBC connection) {
+    auto statementHandle = SQLHSTMT();
+    if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
+        throw std::runtime_error("SQLAllocHandle failed");
+    }
+    return statementHandle;
+}
+
+void prepareStatement(SQLHSTMT statementHandle, const char* statement) {
+    const auto statementLength = SQLINTEGER(strlen(statement));
+    if (SQLPrepare(statementHandle, (SQLCHAR *) statement, statementLength) == SQL_ERROR) {
+        throw std::runtime_error("SQLPrepare failed");
+    }
+}
+
 void executeStatement(const SQLHSTMT &statementHandle) {
     if (SQLExecute(statementHandle) == SQL_ERROR) {
         throw std::runtime_error("SQLExecDirect failed");
@@ -25,7 +60,7 @@ void checkColumns(const SQLHSTMT &statementHandle, SQLSMALLINT numCols = 1) {
 
 void checkAndPrintConnection(SQLHDBC &connection) {
     auto connectionTest = "select net_transport from sys.dm_exec_connections where session_id = @@SPID;";
-    auto length = ::strlen(connectionTest);
+    const auto length = SQLINTEGER(::strlen(connectionTest));
 
     auto statementHandle = SQLHSTMT();
     if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
