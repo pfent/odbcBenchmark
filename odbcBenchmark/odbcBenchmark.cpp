@@ -4,6 +4,8 @@
 #include <sql.h>
 #include <sqlext.h>
 #include <vector>
+#include <algorithm>
+#include <random>
 #include "bench.h"
 #include "sqlHelpers.h"
 
@@ -30,11 +32,10 @@ void doSmallTx(const std::string &connectionString) {
     auto connection = allocateDbConnection(environment.get());
     connectAndPrintConnectionString(connectionString, connection.get());
     checkAndPrintConnection(connection.get());
-    auto statementHandle = allocateStatementHandle(connection.get());
 
     const auto iterations = size_t(1e6);
-    auto statement = "SELECT 1;";
-    prepareStatement(statementHandle.get(), statement);
+    auto statementHandle = allocateStatementHandle(connection.get());
+    prepareStatement(statementHandle.get(), "SELECT 1;");
 
     std::cout << "benchmarking " << iterations << " very small transactions" << '\n';
 
@@ -49,6 +50,74 @@ void doSmallTx(const std::string &connectionString) {
     });
 
     cout << " " << iterations / timeTaken << " msg/s\n";
+
+    SQLDisconnect(connection.get());
+}
+
+void doLargeResultSet(const std::string &connectionString) {
+    auto environment = allocateODBC3Environment();
+    auto connection = allocateDbConnection(environment.get());
+    connectAndPrintConnectionString(connectionString, connection.get());
+    checkAndPrintConnection(connection.get());
+
+
+    const auto results = size_t(1e6);
+    const auto recordSize = 1024; // ~ 1GB
+
+    // https://docs.microsoft.com/en-us/sql/t-sql/statements/create-table-transact-sql?view=sql-server-2017#temporary-tables
+    // I.e. Temporary tables starting with a single number sign '#Temp' are automatically dropped when the session ends
+    auto createTempTable = allocateStatementHandle(connection.get());
+    executeStatement(createTempTable.get(), "CREATE TABLE #Temp (value CHAR(1024) NOT NULL);");
+
+    // 1GB of random characters in records of 1024 chars
+    const auto values = [] {
+        auto res = std::vector<std::array<char, recordSize>>();
+        res.reserve(results);
+
+        auto randomDevice = std::random_device();
+        auto distribution = std::uniform_int_distribution<char>('A', 'Z');
+
+        std::generate_n(std::back_inserter(res), results, [&] {
+            auto record = std::array<char, recordSize>();
+            std::generate(record.begin(), record.end(), [&] { return distribution(randomDevice); });
+            return record;
+        });
+        return res;
+    }();
+
+    // Fill temp table in batches
+    const auto batchSize = 100; // ~100KB hopefully works with SQLExecuteDirect
+    static_assert(results % batchSize == 0);
+
+    for (int i = 0; i < results; i += batchSize) {
+        auto statement = std::string("INSERT INTO #MyTempTable VALUES (");
+        for (int j = i; j < i + batchSize; j++) {
+            statement += "'" + std::string(values[j].begin(), values[j].end()) + "'";
+            if (j < i + batchSize - 1) {
+                statement += ',';
+            }
+        }
+        statement += ");";
+        auto insertTempTable = allocateStatementHandle(connection.get());
+        executeStatement(insertTempTable.get(), statement.c_str());
+    }
+
+    const auto resultSizeMB = static_cast<double>(results) * recordSize / 1024 / 1024;
+    std::cout << "benchmarking " << resultSizeMB << "MB data transfer" << '\n';
+    auto selectFromTempTable = allocateStatementHandle(connection.get());
+    prepareStatement(selectFromTempTable.get(), "SELECT value FROM #Temp");
+
+    auto timeTaken = bench([&] {
+        executeStatement(selectFromTempTable.get());
+        checkColumns(selectFromTempTable.get());
+        for (size_t i = 0; i < results; ++i) {
+            // TODO: walk cursor and check result
+            //fetchAndCheckReturnValue(statementHandle.get());
+        }
+        SQLCloseCursor(selectFromTempTable.get());
+    });
+
+    cout << " " << resultSizeMB / timeTaken << " MB/s\n";
 
     SQLDisconnect(connection.get());
 }

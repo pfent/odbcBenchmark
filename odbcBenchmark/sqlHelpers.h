@@ -76,6 +76,13 @@ void connectAndPrintConnectionString(const std::string &connectionString, SQLHDB
 
 void executeStatement(const SQLHSTMT &statementHandle) {
     if (SQLExecute(statementHandle) == SQL_ERROR) {
+        throw std::runtime_error("SQLExecute failed");
+    }
+}
+
+void executeStatement(const SQLHSTMT& statementHandle, const char* statement) {
+    const auto statementLength = SQLINTEGER(strlen(statement));
+    if(SQLExecDirect(statementHandle, (SQLCHAR*) statement, statementLength) == SQL_ERROR) {
         throw std::runtime_error("SQLExecDirect failed");
     }
 }
