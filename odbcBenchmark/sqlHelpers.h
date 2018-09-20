@@ -97,6 +97,19 @@ void checkColumns(const SQLHSTMT &statementHandle, SQLSMALLINT numCols = 1) {
     }
 }
 
+template <size_t bufferSize>
+void bindColumn(const SQLHSTMT &statementHandle, SQLUSMALLINT columnNumber, std::array<WCHAR, bufferSize> buffer) {
+    if (SQLBindCol(statementHandle, columnNumber, SQL_C_TCHAR, buffer.data(), buffer.size(), nullptr) == SQL_ERROR) {
+        throw std::runtime_error("SQLBindCol failed");
+    }
+}
+
+void fetchBoundColumns(const SQLHSTMT &statementHandle) {
+    if (SQLFetch(statementHandle) == SQL_ERROR) {
+        throw std::runtime_error("SQLFetch failed");
+    }
+}
+
 void checkAndPrintConnection(SQLHDBC connection) {
     auto connectionTest = "select net_transport from sys.dm_exec_connections where session_id = @@SPID;";
     const auto length = SQLINTEGER(::strlen(connectionTest));

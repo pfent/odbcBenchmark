@@ -13,12 +13,9 @@ using namespace std;
 
 void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
     auto buffer = std::array<WCHAR, 64>();
-    if (SQLBindCol(statementHandle, 1, SQL_C_TCHAR, buffer.data(), buffer.size(), nullptr) == SQL_ERROR) {
-        throw std::runtime_error("SQLBindCol failed");
-    }
-    if (SQLFetch(statementHandle) == SQL_ERROR) {
-        throw std::runtime_error("SQLFetch failed");
-    }
+    bindColumn(statementHandle, 1, buffer);
+
+    fetchBoundColumns(statementHandle);
 
     if (buffer[0] != '1') {
         throw std::runtime_error("unexpected return value from SQL statement");
@@ -69,16 +66,18 @@ void doLargeResultSet(const std::string &connectionString) {
     auto createTempTable = allocateStatementHandle(connection.get());
     executeStatement(createTempTable.get(), "CREATE TABLE #Temp (value CHAR(1024) NOT NULL);");
 
+    using Record_t = std::array<WCHAR, recordSize>;
+
     // 1GB of random characters in records of 1024 chars
     const auto values = [] {
-        auto res = std::vector<std::array<char, recordSize>>();
+        auto res = std::vector<Record_t >();
         res.reserve(results);
 
         auto randomDevice = std::random_device();
-        auto distribution = std::uniform_int_distribution<char>('A', 'Z');
+        auto distribution = std::uniform_int_distribution<WCHAR>('A', 'Z');
 
         std::generate_n(std::back_inserter(res), results, [&] {
-            auto record = std::array<char, recordSize>();
+            auto record = Record_t();
             std::generate(record.begin(), record.end(), [&] { return distribution(randomDevice); });
             return record;
         });
@@ -102,7 +101,7 @@ void doLargeResultSet(const std::string &connectionString) {
         executeStatement(insertTempTable.get(), statement.c_str());
     }
 
-    const auto resultSizeMB = static_cast<double>(results) * recordSize / 1024 / 1024;
+    const auto resultSizeMB = static_cast<double>(results) * sizeof(Record_t) / 1024 / 1024;
     std::cout << "benchmarking " << resultSizeMB << "MB data transfer" << '\n';
     auto selectFromTempTable = allocateStatementHandle(connection.get());
     prepareStatement(selectFromTempTable.get(), "SELECT value FROM #Temp");
@@ -110,9 +109,16 @@ void doLargeResultSet(const std::string &connectionString) {
     auto timeTaken = bench([&] {
         executeStatement(selectFromTempTable.get());
         checkColumns(selectFromTempTable.get());
+
+        auto record = Record_t();
+        bindColumn(selectFromTempTable.get(), 1, record);
+
         for (size_t i = 0; i < results; ++i) {
-            // TODO: walk cursor and check result
-            //fetchAndCheckReturnValue(statementHandle.get());
+            fetchBoundColumns(selectFromTempTable.get());
+
+            if(record != values[i]) {
+                throw std::runtime_error("unexpected return value from SQL statement");
+            }
         }
         SQLCloseCursor(selectFromTempTable.get());
     });
