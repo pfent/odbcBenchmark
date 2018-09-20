@@ -99,7 +99,7 @@ void checkColumns(const SQLHSTMT &statementHandle, SQLSMALLINT numCols = 1) {
 }
 
 template <size_t bufferSize>
-void bindColumn(const SQLHSTMT &statementHandle, SQLUSMALLINT columnNumber, std::array<WCHAR, bufferSize> buffer) {
+void bindColumn(const SQLHSTMT &statementHandle, SQLUSMALLINT columnNumber, std::array<WCHAR, bufferSize>& buffer) {
     if (SQLBindCol(statementHandle, columnNumber, SQL_C_TCHAR, buffer.data(), buffer.size(), nullptr) == SQL_ERROR) {
         throw std::runtime_error("SQLBindCol failed");
     }
