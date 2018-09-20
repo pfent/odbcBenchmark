@@ -6,14 +6,15 @@
 #include <iostream>
 #include <memory>
 #include <type_traits>
-#include <sql.h>
-#include <sqlext.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #else
 #define GetDesktopWindow() nullptr
 #endif
+
+#include <sql.h>
+#include <sqlext.h>
 
 void freeODBC3Environment(SQLHENV environment) { SQLFreeHandle(SQL_HANDLE_ENV, environment); }
 
@@ -62,7 +63,7 @@ void connectAndPrintConnectionString(const std::string &connectionString, SQLHDB
     const auto connectionStringLength = SQLSMALLINT(connectionString.length());
     auto out = std::array<SQLCHAR, 512>();
     switch (SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength, out.data(),
-                             out.size(), nullptr, SQL_DRIVER_COMPLETE)) {
+                             SQLSMALLINT(out.size()), nullptr, SQL_DRIVER_COMPLETE)) {
         case SQL_SUCCESS:
         case SQL_SUCCESS_WITH_INFO:
             break;

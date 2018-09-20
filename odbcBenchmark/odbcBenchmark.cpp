@@ -1,8 +1,6 @@
 ﻿#include "odbcBenchmark.h"
 
 #include <string>
-#include <sql.h>
-#include <sqlext.h>
 #include <vector>
 #include <algorithm>
 #include <random>
@@ -69,12 +67,12 @@ void doLargeResultSet(const std::string &connectionString) {
     using Record_t = std::array<WCHAR, recordSize>;
 
     // 1GB of random characters in records of 1024 chars
-    const auto values = [] {
+    const auto values = [&] {
         auto res = std::vector<Record_t >();
         res.reserve(results);
 
         auto randomDevice = std::random_device();
-        auto distribution = std::uniform_int_distribution<WCHAR>('A', 'Z');
+        auto distribution = std::uniform_int_distribution<short>('A', 'Z');
 
         std::generate_n(std::back_inserter(res), results, [&] {
             auto record = Record_t();
