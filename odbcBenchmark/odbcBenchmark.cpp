@@ -68,7 +68,7 @@ void doLargeResultSet(const std::string &connectionString) {
 
     // 1GB of random characters in records of 1024 chars
     const auto values = [&] {
-        auto res = std::vector<Record_t >();
+        auto res = std::vector<Record_t>();
         res.reserve(results);
 
         auto randomDevice = std::random_device();
@@ -86,9 +86,9 @@ void doLargeResultSet(const std::string &connectionString) {
     const auto batchSize = 100; // ~100KB hopefully works with SQLExecuteDirect
     static_assert(results % batchSize == 0);
 
-    for (int i = 0; i < results; i += batchSize) {
+    for (size_t i = 0; i < results; i += batchSize) {
         auto statement = std::string("INSERT INTO #MyTempTable VALUES (");
-        for (int j = i; j < i + batchSize; j++) {
+        for (size_t j = i; j < i + batchSize; j++) {
             statement += "'" + std::string(values[j].begin(), values[j].end()) + "'";
             if (j < i + batchSize - 1) {
                 statement += ',';
@@ -114,7 +114,7 @@ void doLargeResultSet(const std::string &connectionString) {
         for (size_t i = 0; i < results; ++i) {
             fetchBoundColumns(selectFromTempTable.get());
 
-            if(record != values[i]) {
+            if (record != values[i]) {
                 throw std::runtime_error("unexpected return value from SQL statement");
             }
         }
@@ -164,6 +164,7 @@ int main(int argc, char *argv[]) {
         std::cout << "Connecting to " << connectionString << '\n';
         try {
             doSmallTx(connectionString);
+            doLargeResultSet(connectionString);
         }
         catch (const std::runtime_error &e) {
             std::cout << e.what() << '\n';
