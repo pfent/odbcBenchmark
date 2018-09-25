@@ -125,6 +125,37 @@ void doLargeResultSet(const std::string &connectionString) {
     SQLDisconnect(connection.get());
 }
 
+void doInternalSmallTx(const std::string &connectionString) {
+    auto environment = allocateODBC3Environment();
+    auto connection = allocateDbConnection(environment.get());
+    connectAndPrintConnectionString(connectionString, connection.get());
+    checkAndPrintConnection(connection.get());
+
+    const auto iterations = size_t(1e6);
+    auto statementHandle = allocateStatementHandle(connection.get());
+    const auto statement = std::string()
+                           + "DECLARE @i int = 0;\n"
+                           + "WHILE @i < " + to_string(iterations)
+                           + "BEGIN\n"
+                           + "    SELECT 1;\n"
+                           + "    SET @i = @i + 1\n"
+                           + "END";
+    prepareStatement(statementHandle.get(), statement.c_str());
+
+    std::cout << "benchmarking " << iterations << " very small internal transactions" << '\n';
+
+    auto timeTaken = bench([&] {
+        for (size_t i = 0; i < iterations; ++i) {
+            executeStatement(statementHandle.get());
+            SQLCloseCursor(statementHandle.get());
+        }
+    });
+
+    cout << " " << iterations / timeTaken << " msg/s\n";
+
+    SQLDisconnect(connection.get());
+}
+
 /**
   * ODBC latency benchmark
   * roughly based on http://go.microsoft.com/fwlink/?LinkId=244831
@@ -165,6 +196,7 @@ int main(int argc, char *argv[]) {
         try {
             doSmallTx(connectionString);
             doLargeResultSet(connectionString);
+            doInternalSmallTx(connectionString);
         }
         catch (const std::runtime_error &e) {
             std::cout << e.what() << '\n';
