@@ -84,7 +84,7 @@ void executeStatement(const SQLHSTMT &statementHandle) {
 void executeStatement(const SQLHSTMT& statementHandle, const char* statement) {
     const auto statementLength = SQLINTEGER(strlen(statement));
     if(SQLExecDirect(statementHandle, (SQLCHAR*) statement, statementLength) == SQL_ERROR) {
-        throw std::runtime_error("SQLExecDirect failed");
+        throw std::runtime_error(std::string("SQLExecDirect failed: ") + statement);
     }
 }
 

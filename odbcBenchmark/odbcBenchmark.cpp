@@ -64,7 +64,7 @@ void doLargeResultSet(const std::string &connectionString) {
     auto createTempTable = allocateStatementHandle(connection.get());
     executeStatement(createTempTable.get(), "CREATE TABLE #Temp (value CHAR(1024) NOT NULL);");
 
-    using Record_t = std::array<WCHAR, recordSize>;
+	using Record_t = std::array<WCHAR, recordSize>;
 
     // 1GB of random characters in records of 1024 chars
     const auto values = [&] {
@@ -83,18 +83,19 @@ void doLargeResultSet(const std::string &connectionString) {
     }();
 
     // Fill temp table in batches
-    const auto batchSize = 100; // ~100KB hopefully works with SQLExecuteDirect
+    const auto batchSize = 1000; // ~1MB hopefully works with SQLExecuteDirect
     static_assert(results % batchSize == 0);
 
     for (size_t i = 0; i < results; i += batchSize) {
-        auto statement = std::string("INSERT INTO #MyTempTable VALUES (");
+        auto statement = std::string("INSERT INTO #Temp VALUES ");
+		statement.reserve(batchSize * recordSize);
         for (size_t j = i; j < i + batchSize; j++) {
-            statement += "'" + std::string(values[j].begin(), values[j].end()) + "'";
+            statement += "('" + std::string(values[j].begin(), values[j].end()) + "')";
             if (j < i + batchSize - 1) {
                 statement += ',';
             }
         }
-        statement += ");";
+        statement += ";";
         auto insertTempTable = allocateStatementHandle(connection.get());
         executeStatement(insertTempTable.get(), statement.c_str());
     }
@@ -113,16 +114,14 @@ void doLargeResultSet(const std::string &connectionString) {
 
         for (size_t i = 0; i < results; ++i) {
             fetchBoundColumns(selectFromTempTable.get());
-
-            if (record != values[i]) {
-                throw std::runtime_error("unexpected return value from SQL statement");
-            }
         }
         SQLCloseCursor(selectFromTempTable.get());
     });
 
     cout << " " << resultSizeMB / timeTaken << " MB/s\n";
 
+	createTempTable.reset();
+	selectFromTempTable.reset();
     SQLDisconnect(connection.get());
 }
 
@@ -141,7 +140,8 @@ int main(int argc, char *argv[]) {
     const auto protocols = {"lpc", "tcp", "np"};
 
     const auto connectionPrefix = std::string(
-            "Driver={SQL Server Native Client 11.0};"
+            //"Driver={SQL Server Native Client 11.0};"
+			"Driver={ODBC Driver 13 for SQL Server};"
             "Server=");
     const auto connectionSuffix = std::string(
             ":(local);"
