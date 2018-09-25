@@ -144,14 +144,26 @@ void doInternalSmallTx(const std::string &connectionString) {
 
     std::cout << "benchmarking " << iterations << " very small internal transactions" << '\n';
 
+	const auto averaging = size_t(1e2);
     auto timeTaken = bench([&] {
-        for (size_t i = 0; i < iterations; ++i) {
+        for (size_t i = 0; i < averaging; ++i) {
             executeStatement(statementHandle.get());
+
+			auto buffer = std::array<WCHAR, 64>();
+			bindColumn(statementHandle.get(), 1, buffer);
+
+			for (int j = 0; j < iterations; ++j) {
+				fetchBoundColumns(statementHandle.get());
+				if (buffer[0] != '1') {
+					throw std::runtime_error("unexpected return value from SQL statement");
+				}
+			}
+
             SQLCloseCursor(statementHandle.get());
         }
     });
 
-    cout << " " << iterations / timeTaken << " msg/s\n";
+    cout << " " << iterations / (timeTaken / averaging) << " msg/s\n";
 
     SQLDisconnect(connection.get());
 }
