@@ -1,22 +1,47 @@
 ﻿#include "odbcBenchmark.h"
 
-#include <string>
 #include <vector>
 #include <algorithm>
 #include <random>
 #include "bench.h"
 #include "sqlHelpers.h"
+#include "ycsb.h"
 
 using namespace std;
 
-void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle) {
-    auto buffer = std::array<WCHAR, 64>();
+static auto db = YcsbDatabase();
+
+void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle, const wchar_t *expected = L"1") {
+    auto buffer = std::array<wchar_t, ycsb_field_length>();
     bindColumn(statementHandle, 1, buffer);
 
     fetchBoundColumns(statementHandle);
 
-    if (buffer[0] != '1') {
+    if (!std::equal(buffer.begin(), buffer.end(), expected)) {
         throw std::runtime_error("unexpected return value from SQL statement");
+    }
+}
+
+void prepareYcsb(SQLHDBC connection) {
+    auto create = std::string("CREATE TABLE #Ycsb ( key INTEGER PRIMARY KEY NOT NULL, ");
+    for (size_t i = 1; i < ycsb_field_count; ++i) {
+        create += "v" + std::to_string(i) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL, ";
+    }
+    create += std::to_string(ycsb_field_count) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
+    create += ");";
+
+    for (auto&[key, value] : db.database) {
+        auto statement = std::string("INSERT INTO #Ycsb VALUES ");
+        statement += "(" + std::to_string(key) + ", ";
+        for (auto &v : value.rows) {
+            statement += v.data();
+            statement += ", ";
+        }
+        statement.resize(statement.length() - 2); // remove last comma
+        statement += ")";
+        statement += ";";
+        auto insertTempTable = allocateStatementHandle(connection);
+        executeStatement(insertTempTable.get(), statement.c_str());
     }
 }
 
@@ -27,24 +52,37 @@ void doSmallTx(const std::string &connectionString) {
     auto connection = allocateDbConnection(environment.get());
     connectAndPrintConnectionString(connectionString, connection.get());
     checkAndPrintConnection(connection.get());
+    prepareYcsb(connection.get());
 
-    const auto iterations = size_t(1e6);
-    auto statementHandle = allocateStatementHandle(connection.get());
-    prepareStatement(statementHandle.get(), "SELECT 1;");
+    auto columnStatements = std::vector<StatementHandle>();
+    for (size_t i = 1; i < ycsb_field_count + 1; ++i) {
+        columnStatements.push_back(allocateStatementHandle(connection.get()));
+        auto statement = std::string("SELECT v") + std::to_string(i) + " FROM #Ycsb WHERE key=?;";
+        prepareStatement(columnStatements.back().get(), statement.c_str());
+    }
 
-    std::cout << "benchmarking " << iterations << " very small transactions" << '\n';
+    auto rand = Random32();
+    const auto lookupKeys = generateZipfLookupKeys(ycsb_tx_count);
+
+    std::cout << "benchmarking " << lookupKeys.size() << " small transactions" << '\n';
 
     auto timeTaken = bench([&] {
-        for (size_t i = 0; i < iterations; ++i) {
-            executeStatement(statementHandle.get());
-            checkColumns(statementHandle.get());
-            fetchAndCheckReturnValue(statementHandle.get());
+        for (auto lookupKey: lookupKeys) {
+            auto which = rand.next();
 
-            SQLCloseCursor(statementHandle.get());
+            bindKeyParam(columnStatements[which].get(), lookupKey);
+            executeStatement(columnStatements[which].get());
+            checkColumns(columnStatements[which].get());
+
+            auto result = std::array<wchar_t, ycsb_field_length>();
+            db.lookup(lookupKey, which, result.begin());
+            fetchAndCheckReturnValue(columnStatements[which].get(), result.begin());
+
+            SQLCloseCursor(columnStatements[which].get());
         }
     });
 
-    cout << " " << iterations / timeTaken << " msg/s\n";
+    cout << " " << lookupKeys.size() / timeTaken << " msg/s\n";
 
     SQLDisconnect(connection.get());
 }
@@ -64,7 +102,7 @@ void doLargeResultSet(const std::string &connectionString) {
     auto createTempTable = allocateStatementHandle(connection.get());
     executeStatement(createTempTable.get(), "CREATE TABLE #Temp (value CHAR(1024) NOT NULL);");
 
-	using Record_t = std::array<WCHAR, recordSize>;
+    using Record_t = std::array<wchar_t, recordSize>;
 
     // 1GB of random characters in records of 1024 chars
     const auto values = [&] {
@@ -88,7 +126,7 @@ void doLargeResultSet(const std::string &connectionString) {
 
     for (size_t i = 0; i < results; i += batchSize) {
         auto statement = std::string("INSERT INTO #Temp VALUES ");
-		statement.reserve(batchSize * recordSize);
+        statement.reserve(batchSize * recordSize);
         for (size_t j = i; j < i + batchSize; j++) {
             statement += "('" + std::string(values[j].begin(), values[j].end()) + "')";
             if (j < i + batchSize - 1) {
@@ -120,8 +158,8 @@ void doLargeResultSet(const std::string &connectionString) {
 
     cout << " " << resultSizeMB / timeTaken << " MB/s\n";
 
-	createTempTable.reset();
-	selectFromTempTable.reset();
+    createTempTable.reset();
+    selectFromTempTable.reset();
     SQLDisconnect(connection.get());
 }
 
@@ -144,20 +182,20 @@ void doInternalSmallTx(const std::string &connectionString) {
 
     std::cout << "benchmarking " << iterations << " very small internal transactions" << '\n';
 
-	const auto averaging = size_t(1e2);
+    const auto averaging = size_t(1e2);
     auto timeTaken = bench([&] {
         for (size_t i = 0; i < averaging; ++i) {
             executeStatement(statementHandle.get());
 
-			auto buffer = std::array<WCHAR, 64>();
-			bindColumn(statementHandle.get(), 1, buffer);
+            auto buffer = std::array<wchar_t, 64>();
+            bindColumn(statementHandle.get(), 1, buffer);
 
-			for (int j = 0; j < iterations; ++j) {
-				fetchBoundColumns(statementHandle.get());
-				if (buffer[0] != '1') {
-					throw std::runtime_error("unexpected return value from SQL statement");
-				}
-			}
+            for (size_t j = 0; j < iterations; ++j) {
+                fetchBoundColumns(statementHandle.get());
+                if (buffer[0] != '1') {
+                    throw std::runtime_error("unexpected return value from SQL statement");
+                }
+            }
 
             SQLCloseCursor(statementHandle.get());
         }
@@ -184,7 +222,7 @@ int main(int argc, char *argv[]) {
 
     const auto connectionPrefix = std::string(
             //"Driver={SQL Server Native Client 11.0};"
-			"Driver={ODBC Driver 13 for SQL Server};"
+            "Driver={ODBC Driver 13 for SQL Server};"
             "Server=");
     const auto connectionSuffix = std::string(
             ":(local);"

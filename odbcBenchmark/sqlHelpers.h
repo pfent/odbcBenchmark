@@ -43,12 +43,14 @@ auto allocateDbConnection(SQLHENV environment) {
 
 void freeStatementHandle(SQLHSTMT statementHandle) { SQLFreeHandle(SQL_HANDLE_STMT, statementHandle); }
 
+using StatementHandle = std::unique_ptr<std::remove_pointer_t<SQLHSTMT>, decltype(&freeStatementHandle)>;
+
 auto allocateStatementHandle(SQLHDBC connection) {
     auto statementHandle = SQLHSTMT();
     if (SQLAllocHandle(SQL_HANDLE_STMT, connection, &statementHandle) != SQL_SUCCESS) {
         throw std::runtime_error("SQLAllocHandle failed");
     }
-    return std::unique_ptr<std::remove_pointer_t<SQLHSTMT>, decltype(&freeStatementHandle)>(statementHandle, &freeStatementHandle);
+    return StatementHandle(statementHandle, &freeStatementHandle);
 }
 
 void prepareStatement(SQLHSTMT statementHandle, const char *statement) {
@@ -81,9 +83,9 @@ void executeStatement(const SQLHSTMT &statementHandle) {
     }
 }
 
-void executeStatement(const SQLHSTMT& statementHandle, const char* statement) {
+void executeStatement(const SQLHSTMT &statementHandle, const char *statement) {
     const auto statementLength = SQLINTEGER(strlen(statement));
-    if(SQLExecDirect(statementHandle, (SQLCHAR*) statement, statementLength) == SQL_ERROR) {
+    if (SQLExecDirect(statementHandle, (SQLCHAR *) statement, statementLength) == SQL_ERROR) {
         throw std::runtime_error(std::string("SQLExecDirect failed: ") + statement);
     }
 }
@@ -98,8 +100,13 @@ void checkColumns(const SQLHSTMT &statementHandle, SQLSMALLINT numCols = 1) {
     }
 }
 
-template <size_t bufferSize>
-void bindColumn(const SQLHSTMT &statementHandle, SQLUSMALLINT columnNumber, std::array<WCHAR, bufferSize>& buffer) {
+void bindKeyParam(const SQLHSTMT &statementHandle, uint32_t &key) {
+    SQLBindParameter(statementHandle, 1, SQL_PARAM_INPUT, SQL_C_ULONG,
+                     SQL_INTEGER, 10, 0, &key, 1, nullptr);
+}
+
+template<size_t bufferSize>
+void bindColumn(const SQLHSTMT &statementHandle, SQLUSMALLINT columnNumber, std::array<wchar_t, bufferSize> &buffer) {
     if (SQLBindCol(statementHandle, columnNumber, SQL_C_TCHAR, buffer.data(), buffer.size(), nullptr) == SQL_ERROR) {
         throw std::runtime_error("SQLBindCol failed");
     }
