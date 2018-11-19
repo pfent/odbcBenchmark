@@ -105,8 +105,9 @@ void bindKeyParam(const SQLHSTMT &statementHandle, uint32_t &key) {
                      SQL_INTEGER, 10, 0, &key, 1, nullptr);
 }
 
-template<size_t bufferSize>
-void bindColumn(const SQLHSTMT &statementHandle, SQLUSMALLINT columnNumber, std::array<wchar_t, bufferSize> &buffer) {
+template<typename bufferType, size_t bufferSize>
+void
+bindColumn(const SQLHSTMT &statementHandle, SQLUSMALLINT columnNumber, std::array<bufferType, bufferSize> &buffer) {
     if (SQLBindCol(statementHandle, columnNumber, SQL_C_TCHAR, buffer.data(), buffer.size(), nullptr) == SQL_ERROR) {
         throw std::runtime_error("SQLBindCol failed");
     }

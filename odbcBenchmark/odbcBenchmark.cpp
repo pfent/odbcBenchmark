@@ -11,9 +11,10 @@ using namespace std;
 
 static auto db = YcsbDatabase();
 
-void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle, const wchar_t *expected = L"1") {
-    auto buffer = std::array<wchar_t, ycsb_field_length>();
-    bindColumn(statementHandle, 1, buffer);
+template<typename E>
+void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle, const E *expected) {
+    auto buffer = std::array<char, ycsb_field_length>();
+    bindColumn<char>(statementHandle, 1, buffer);
 
     fetchBoundColumns(statementHandle);
 
@@ -25,9 +26,9 @@ void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle, const wchar_t *ex
 void prepareYcsb(SQLHDBC connection) {
     auto create = std::string("CREATE TABLE #Ycsb ( key INTEGER PRIMARY KEY NOT NULL, ");
     for (size_t i = 1; i < ycsb_field_count; ++i) {
-        create += "v" + std::to_string(i) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL, ";
+        create += "v" + std::to_string(i) + " NCHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL, ";
     }
-    create += std::to_string(ycsb_field_count) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
+    create += std::to_string(ycsb_field_count) + " NCHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
     create += ");";
 
     for (auto&[key, value] : db.database) {
@@ -148,7 +149,7 @@ void doLargeResultSet(const std::string &connectionString) {
         checkColumns(selectFromTempTable.get());
 
         auto record = Record_t();
-        bindColumn(selectFromTempTable.get(), 1, record);
+        bindColumn<wchar_t>(selectFromTempTable.get(), 1, record);
 
         for (size_t i = 0; i < results; ++i) {
             fetchBoundColumns(selectFromTempTable.get());
@@ -188,7 +189,7 @@ void doInternalSmallTx(const std::string &connectionString) {
             executeStatement(statementHandle.get());
 
             auto buffer = std::array<wchar_t, 64>();
-            bindColumn(statementHandle.get(), 1, buffer);
+            bindColumn<wchar_t>(statementHandle.get(), 1, buffer);
 
             for (size_t j = 0; j < iterations; ++j) {
                 fetchBoundColumns(statementHandle.get());
