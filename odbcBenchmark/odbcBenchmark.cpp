@@ -26,9 +26,9 @@ void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle, const E *expected
 void prepareYcsb(SQLHDBC connection) {
     auto create = std::string("CREATE TABLE #Ycsb ( key INTEGER PRIMARY KEY NOT NULL, ");
     for (size_t i = 1; i < ycsb_field_count; ++i) {
-        create += "v" + std::to_string(i) + " NCHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL, ";
+       create += "v" + std::to_string(i) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL, ";
     }
-    create += std::to_string(ycsb_field_count) + " NCHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
+   create += std::to_string(ycsb_field_count) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
     create += ");";
 
     for (auto&[key, value] : db.database) {
@@ -103,7 +103,7 @@ void doLargeResultSet(const std::string &connectionString) {
     auto createTempTable = allocateStatementHandle(connection.get());
     executeStatement(createTempTable.get(), "CREATE TABLE #Temp (value CHAR(1024) NOT NULL);");
 
-    using Record_t = std::array<wchar_t, recordSize>;
+   using Record_t = std::array<char, recordSize>;
 
     // 1GB of random characters in records of 1024 chars
     const auto values = [&] {
@@ -111,7 +111,7 @@ void doLargeResultSet(const std::string &connectionString) {
         res.reserve(results);
 
         auto randomDevice = std::random_device();
-        auto distribution = std::uniform_int_distribution<short>('A', 'Z');
+       auto distribution = std::uniform_int_distribution<char>('A', 'Z');
 
         std::generate_n(std::back_inserter(res), results, [&] {
             auto record = Record_t();
@@ -149,7 +149,7 @@ void doLargeResultSet(const std::string &connectionString) {
         checkColumns(selectFromTempTable.get());
 
         auto record = Record_t();
-        bindColumn<wchar_t>(selectFromTempTable.get(), 1, record);
+       bindColumn<char>(selectFromTempTable.get(), 1, record);
 
         for (size_t i = 0; i < results; ++i) {
             fetchBoundColumns(selectFromTempTable.get());
@@ -188,8 +188,8 @@ void doInternalSmallTx(const std::string &connectionString) {
         for (size_t i = 0; i < averaging; ++i) {
             executeStatement(statementHandle.get());
 
-            auto buffer = std::array<wchar_t, 64>();
-            bindColumn<wchar_t>(statementHandle.get(), 1, buffer);
+           auto buffer = std::array<char, 64>();
+           bindColumn<char>(statementHandle.get(), 1, buffer);
 
             for (size_t j = 0; j < iterations; ++j) {
                 fetchBoundColumns(statementHandle.get());
