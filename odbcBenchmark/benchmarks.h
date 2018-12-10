@@ -19,7 +19,7 @@ void fetchAndCheckReturnValue(const SQLHSTMT &statementHandle, const E* expected
 }
 
 void prepareYcsb(SQLHDBC connection) {
-   auto create = std::string("CREATE TABLE #Ycsb ( key INTEGER PRIMARY KEY NOT NULL, ");
+   auto create = std::string("CREATE TABLE #Ycsb ( ycsb_key INTEGER PRIMARY KEY NOT NULL, ");
    for (size_t i = 1; i < ycsb_field_count; ++i) {
       create += "v" + std::to_string(i) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL, ";
    }
@@ -28,10 +28,10 @@ void prepareYcsb(SQLHDBC connection) {
 
    for (auto&[key, value] : db.database) {
       auto statement = std::string("INSERT INTO #Ycsb VALUES ");
-      statement += "(" + std::to_string(key) + ", ";
+      statement += "(" + std::to_string(key) + ", '";
       for (auto &v : value.rows) {
          statement += v.data();
-         statement += ", ";
+         statement += "', ";
       }
       statement.resize(statement.length() - 2); // remove last comma
       statement += ")";
@@ -49,7 +49,7 @@ void doSmallTx(SQLHDBC connection) {
    auto columnStatements = std::vector<StatementHandle>();
    for (size_t i = 1; i < ycsb_field_count + 1; ++i) {
       columnStatements.push_back(allocateStatementHandle(connection));
-      auto statement = std::string("SELECT v") + std::to_string(i) + " FROM #Ycsb WHERE key=?;";
+      auto statement = std::string("SELECT v") + std::to_string(i) + " FROM #Ycsb WHERE ycsb_key=?;";
       prepareStatement(columnStatements.back().get(), statement.c_str());
    }
 

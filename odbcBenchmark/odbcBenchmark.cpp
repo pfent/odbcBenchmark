@@ -60,6 +60,6 @@ int main(int argc, char* argv[]) {
       std::cout << '\n';
    }
 
-   std::cout << "done.";
+   std::cout << "done.\n";
    return 0;
 }
