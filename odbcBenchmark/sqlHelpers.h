@@ -73,11 +73,11 @@ void handleError(SQLRETURN res, SQLSMALLINT handleType, SQLHANDLE handle) {
         SQLGetDiagRec(handleType, handle, i, SqlState, &NativeError, Msg, sizeof(Msg), &MsgLen) !=
         SQL_NO_DATA;
         ++i) {
-      error += std::string("\nSqlState: ") + std::string(std::begin(SqlState), std::end(SqlState)) +
+      error += std::string("\nSqlState: ") + std::string(std::begin(SqlState), std::end(SqlState) - 1) +
                std::string("\nNativeError: ") + std::to_string(NativeError) +
                std::string("\nMessage: ") + std::string(Msg, &Msg[MsgLen]);
    }
-   throw std::runtime_error("SQLDriverConnect failed, did you enter an invalid connection string?" + error);
+   throw std::runtime_error("SQLDriverConnect failed, did you enter an invalid connection string?\n" + error);
 }
 
 void connectAndPrintConnectionString(const std::string &connectionString, SQLHDBC connection) {
