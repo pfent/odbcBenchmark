@@ -9,6 +9,7 @@ using namespace std;
 int main(int argc, char* argv[]) {
    if (argc < 4) {
       std::cout << "usage: odbcBenchmarkSQLConnect <host> <user> <password>";
+      return -1;
    }
    auto serverName = argv[1];
    auto userName = argv[2];

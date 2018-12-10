@@ -109,14 +109,16 @@ void connect(const std::string &serverName, const std::string &userName, const s
    auto rawPassword = (SQLCHAR*) (password.c_str());
    const auto passwordLength = SQLSMALLINT(password.length());
 
-   switch (SQLConnect(connection, rawServerName, serverNameLength, rawUserName, userNameLength, rawPassword,
-                      passwordLength)) {
+   const auto res = SQLConnect(connection, rawServerName, serverNameLength, rawUserName, userNameLength, rawPassword,
+                               passwordLength);
+
+   switch (res) {
       case SQL_SUCCESS:
       case SQL_SUCCESS_WITH_INFO:
          break;
       case SQL_ERROR:
       default:
-         throw std::runtime_error("SQLDriverConnect failed, did you enter an invalid connection string?");
+         handleError(res, SQL_HANDLE_DBC, connection);
    }
 }
 
