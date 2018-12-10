@@ -134,9 +134,11 @@ void doLargeResultSet(SQLHDBC connection) {
       checkColumns(selectFromTempTable.get());
       bindColumn<char>(selectFromTempTable.get(), 1, record);
 
+      DoNotOptimize(record);
       for (size_t i = 0; i < results; ++i) {
          fetchBoundColumns(selectFromTempTable.get());
       }
+      ClobberMemory();
       SQLCloseCursor(selectFromTempTable.get());
    });
 
