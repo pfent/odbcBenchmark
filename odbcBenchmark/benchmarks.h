@@ -28,8 +28,9 @@ void prepareYcsb(SQLHDBC connection) {
 
    for (auto&[key, value] : db.database) {
       auto statement = std::string("INSERT INTO #Ycsb VALUES ");
-      statement += "(" + std::to_string(key) + ", '";
+      statement += "(" + std::to_string(key) + ", ";
       for (auto &v : value.rows) {
+         statement += "'";
          statement += v.data();
          statement += "', ";
       }
