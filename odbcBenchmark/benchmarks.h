@@ -28,8 +28,6 @@ void prepareYcsb(SQLHDBC connection) {
    auto createTempTable = allocateStatementHandle(connection);
    executeStatement(createTempTable.get(), create.c_str());
 
-   std::cout << create << '\n';
-
    for (auto&[key, value] : db.database) {
       auto statement = std::string("INSERT INTO #Ycsb VALUES ");
       statement += "(" + std::to_string(key) + ", ";
