@@ -47,8 +47,6 @@ void prepareYcsb(SQLHDBC connection) {
 // Do transactions with statements
 // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-how-to/execute-queries/use-a-statement-odbc
 void doSmallTx(SQLHDBC connection) {
-   prepareYcsb(connection);
-
    auto columnStatements = std::vector<StatementHandle>();
    for (size_t i = 1; i < ycsb_field_count + 1; ++i) {
       columnStatements.push_back(allocateStatementHandle(connection));

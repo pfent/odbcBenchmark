@@ -22,6 +22,7 @@ int main(int argc, char* argv[]) {
       connect(serverName, userName, password, connection.get());
       checkAndPrintConnection(connection.get());
 
+      prepareYcsb(connection.get());
       doSmallTx(connection.get());
       doLargeResultSet(connection.get());
       doInternalSmallTx(connection.get());
