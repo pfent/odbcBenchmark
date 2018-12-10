@@ -58,6 +58,7 @@ void doSmallTx(SQLHDBC connection) {
    const auto lookupKeys = generateZipfLookupKeys(ycsb_tx_count);
 
    std::cout << "benchmarking " << lookupKeys.size() << " small transactions" << '\n';
+   auto result = std::array<wchar_t, ycsb_field_length>();
 
    auto timeTaken = bench([&] {
       for (auto lookupKey: lookupKeys) {
@@ -67,7 +68,6 @@ void doSmallTx(SQLHDBC connection) {
          executeStatement(columnStatements[which].get());
          checkColumns(columnStatements[which].get());
 
-         auto result = std::array<wchar_t, ycsb_field_length>();
          db.lookup(lookupKey, which, result.begin());
          fetchAndCheckReturnValue(columnStatements[which].get(), result.data());
 
@@ -128,11 +128,10 @@ void doLargeResultSet(SQLHDBC connection) {
    auto selectFromTempTable = allocateStatementHandle(connection);
    prepareStatement(selectFromTempTable.get(), "SELECT value FROM #Temp");
 
+   auto record = Record_t();
    auto timeTaken = bench([&] {
       executeStatement(selectFromTempTable.get());
       checkColumns(selectFromTempTable.get());
-
-      auto record = Record_t();
       bindColumn<char>(selectFromTempTable.get(), 1, record);
 
       for (size_t i = 0; i < results; ++i) {
