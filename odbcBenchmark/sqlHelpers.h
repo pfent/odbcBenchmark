@@ -122,15 +122,17 @@ void connect(const std::string &serverName, const std::string &userName, const s
    }
 }
 
-void executeStatement(const SQLHSTMT &statementHandle) {
+void executeStatement(SQLHSTMT statementHandle) {
    if (SQLExecute(statementHandle) == SQL_ERROR) {
       throw std::runtime_error("SQLExecute failed");
    }
 }
 
-void executeStatement(const SQLHSTMT &statementHandle, const char* statement) {
+void executeStatement(SQLHSTMT statementHandle, const char* statement) {
    const auto statementLength = SQLINTEGER(strlen(statement));
-   if (SQLExecDirect(statementHandle, (SQLCHAR*) statement, statementLength) == SQL_ERROR) {
+   auto res = SQLExecDirect(statementHandle, (SQLCHAR*) statement, statementLength);
+   if (res == SQL_ERROR) {
+      handleError(res, SQL_HANDLE_STMT, statementHandle);
       throw std::runtime_error(std::string("SQLExecDirect failed: ") + statement);
    }
 }
