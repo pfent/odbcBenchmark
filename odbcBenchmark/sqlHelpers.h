@@ -8,8 +8,10 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#define DRIVER_COMPLETION SQL_DRIVER_COMPLETE
 #else
 #define GetDesktopWindow() nullptr
+#define DRIVER_COMPLETION SQL_DRIVER_NOPROMPT
 #endif
 
 #include <sql.h>
@@ -85,8 +87,7 @@ void connectAndPrintConnectionString(const std::string &connectionString, SQLHDB
    const auto connectionStringLength = SQLSMALLINT(connectionString.length());
    auto out = std::array<SQLCHAR, 512>();
    const auto res = SQLDriverConnect(connection, GetDesktopWindow(), rawConnectionString, connectionStringLength,
-                                     out.data(),
-                                     SQLSMALLINT(out.size()), nullptr, SQL_DRIVER_COMPLETE);
+                                     out.data(), SQLSMALLINT(out.size()), nullptr, DRIVER_COMPLETION);
    switch (res) {
       case SQL_SUCCESS:
       case SQL_SUCCESS_WITH_INFO:
