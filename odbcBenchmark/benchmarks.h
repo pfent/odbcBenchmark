@@ -25,6 +25,8 @@ void prepareYcsb(SQLHDBC connection) {
    }
    create += "v" + std::to_string(ycsb_field_count) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
    create += ");";
+   auto createTempTable = allocateStatementHandle(connection);
+   executeStatement(createTempTable.get(), create.c_str());
 
    std::cout << create << '\n';
 
