@@ -63,7 +63,7 @@ void doSmallTx(SQLHDBC connection) {
 
    auto timeTaken = bench([&] {
       for (auto lookupKey: lookupKeys) {
-         auto which = rand.next();
+         auto which = rand.next() % ycsb_field_count;
 
          bindKeyParam(columnStatements[which].get(), lookupKey);
          executeStatement(columnStatements[which].get());
