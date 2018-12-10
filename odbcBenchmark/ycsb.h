@@ -1,5 +1,4 @@
-#ifndef L5RDMA_YCSB_H
-#define L5RDMA_YCSB_H
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -112,5 +111,3 @@ struct YcsbDatabase {
         DoNotOptimize(std::copy(begin, end, target));
     }
 };
-
-#endif //L5RDMA_YCSB_H

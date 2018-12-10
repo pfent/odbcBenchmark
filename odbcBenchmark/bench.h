@@ -1,5 +1,4 @@
-#ifndef ODBCBENCHMARK_BENCH_H
-#define ODBCBENCHMARK_BENCH_H
+#pragma once
 
 #include <chrono>
 
@@ -13,5 +12,3 @@ auto bench(T &&fun) {
 
     return std::chrono::duration<double>(end - start).count();
 }
-
-#endif //ODBCBENCHMARK_BENCH_H

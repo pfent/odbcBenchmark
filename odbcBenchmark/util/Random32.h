@@ -1,5 +1,4 @@
-#ifndef L5RDMA_RANDOM32_H
-#define L5RDMA_RANDOM32_H
+#pragma once
 
 #include <cstdint>
 
@@ -16,5 +15,3 @@ public:
         return state;
     }
 };
-
-#endif //L5RDMA_RANDOM32_H
