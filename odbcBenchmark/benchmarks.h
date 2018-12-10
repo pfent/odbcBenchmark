@@ -23,8 +23,10 @@ void prepareYcsb(SQLHDBC connection) {
    for (size_t i = 1; i < ycsb_field_count; ++i) {
       create += "v" + std::to_string(i) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL, ";
    }
-   create += std::to_string(ycsb_field_count) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
+   create += "v" + std::to_string(ycsb_field_count) + " CHAR(" + std::to_string(ycsb_field_length) + ") NOT NULL";
    create += ");";
+
+   std::cout << create << '\n';
 
    for (auto&[key, value] : db.database) {
       auto statement = std::string("INSERT INTO #Ycsb VALUES ");
