@@ -64,7 +64,7 @@ auto generateLookupKeys(size_t count, size_t maxValue) {
     auto rand = Random32();
     auto res = std::vector<YcsbKey>();
     res.reserve(count);
-    std::generate_n(std::back_inserter(res), count, [&] { return rand.next() % maxValue; });
+    std::generate_n(std::back_inserter(res), count, [&] { return static_cast<YcsbKey>(rand.next() % maxValue); });
     return res;
 }
 
@@ -83,7 +83,7 @@ auto generateZipfLookupKeys(size_t count, double factor = 1.0) {
 
     auto res = std::vector<YcsbKey>();
     res.reserve(count);
-    std::generate_n(std::back_inserter(res), count, [&] { return rand(); });
+    std::generate_n(std::back_inserter(res), count, [&] { return static_cast<unsigned int>(rand()); });
     return res;
 }
 

@@ -1,4 +1,5 @@
-﻿#include <vector>
+﻿#include <iostream>
+#include <vector>
 #include "benchmarks.h"
 
 using namespace std;

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <type_traits>
+#include <string>
 
 #ifdef _WIN32
 #include <windows.h>

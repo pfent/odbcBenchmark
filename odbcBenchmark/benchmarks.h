@@ -73,7 +73,7 @@ void doSmallTx(SQLHDBC connection) {
 
          auto result = std::array<wchar_t, ycsb_field_length>();
          db.lookup(lookupKey, which, result.begin());
-         fetchAndCheckReturnValue(columnStatements[which].get(), result.begin());
+         fetchAndCheckReturnValue(columnStatements[which].get(), result.data());
 
          SQLCloseCursor(columnStatements[which].get());
       }
@@ -99,11 +99,11 @@ void doLargeResultSet(SQLHDBC connection) {
       res.reserve(results);
 
       auto randomDevice = std::random_device();
-      auto distribution = std::uniform_int_distribution<char>('A', 'Z');
+      auto distribution = std::uniform_int_distribution<short>('A', 'Z');
 
       std::generate_n(std::back_inserter(res), results, [&] {
          auto record = Record_t();
-         std::generate(record.begin(), record.end(), [&] { return distribution(randomDevice); });
+         std::generate(record.begin(), record.end(), [&] { return static_cast<char>(distribution(randomDevice)); });
          return record;
       });
       return res;
