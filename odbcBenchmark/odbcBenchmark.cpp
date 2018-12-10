@@ -49,6 +49,7 @@ int main(int argc, char* argv[]) {
          connectAndPrintConnectionString(connectionString, connection.get());
          checkAndPrintConnection(connection.get());
 
+         prepareYcsb(connection.get());
          doSmallTx(connection.get());
          doLargeResultSet(connection.get());
          doInternalSmallTx(connection.get());
